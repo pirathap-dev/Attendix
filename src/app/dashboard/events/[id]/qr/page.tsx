@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import QRDisplay from "./qr-display"
+import { LocalTime } from "@/components/local-time"
 
 export default async function QRPage({
   params,
@@ -41,11 +42,7 @@ export default async function QRPage({
           </span>
         </p>
         <p className="text-muted-foreground">
-          Expected at{" "}
-          {new Date(event.expectedTime).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+          Expected at <LocalTime date={event.expectedTime} />
         </p>
       </div>
 
