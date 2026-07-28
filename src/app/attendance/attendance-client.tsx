@@ -23,6 +23,28 @@ export default function AttendanceClient() {
     }
   }, [token])
 
+  const submitWithPosition = async (position: GeolocationPosition) => {
+    setStatus("SUBMITTING")
+    try {
+      const result = await recordAttendance(
+        token!,
+        position.coords.latitude,
+        position.coords.longitude
+      )
+      if (result?.error) {
+        setStatus("ERROR")
+        setMessage(result.error)
+      } else {
+        setStatus("SUCCESS")
+        setMessage(result?.message || "Attendance recorded successfully!")
+        toast.success("Attendance Marked", { description: result?.message })
+      }
+    } catch {
+      setStatus("ERROR")
+      setMessage("An unexpected error occurred while communicating with the server.")
+    }
+  }
+
   const handleMarkAttendance = () => {
     if (!token) return
 
@@ -34,46 +56,34 @@ export default function AttendanceClient() {
       return
     }
 
+    // Stage 1: Fast network/WiFi location (works indoors, no GPS needed)
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        setStatus("SUBMITTING")
-        try {
-          const result = await recordAttendance(
-            token,
-            position.coords.latitude,
-            position.coords.longitude
-          )
-
-          if (result?.error) {
+      submitWithPosition,
+      () => {
+        // Stage 2: Fallback to full GPS with longer timeout
+        navigator.geolocation.getCurrentPosition(
+          submitWithPosition,
+          (error) => {
             setStatus("ERROR")
-            setMessage(result.error)
-          } else {
-            setStatus("SUCCESS")
-            setMessage(result?.message || "Attendance recorded successfully!")
-            toast.success("Attendance Marked", { description: result?.message })
-          }
-        } catch {
-          setStatus("ERROR")
-          setMessage("An unexpected error occurred while communicating with the server.")
-        }
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                setMessage("Location permission denied. Please allow location access in your browser settings and try again.")
+                break
+              case error.POSITION_UNAVAILABLE:
+                setMessage("Your device location is currently unavailable. Please check that Location Services are enabled and try again.")
+                break
+              case error.TIMEOUT:
+                setMessage("Could not determine your location in time. Please move to an area with better GPS signal (near a window or outdoors) and try again.")
+                break
+              default:
+                setMessage("An unknown location error occurred. Please try again.")
+            }
+          },
+          { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+        )
       },
-      (error) => {
-        setStatus("ERROR")
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            setMessage("Location permission denied. Please allow location access in your browser settings and try again.")
-            break
-          case error.POSITION_UNAVAILABLE:
-            setMessage("Your GPS location is currently unavailable. Please try moving to an open area.")
-            break
-          case error.TIMEOUT:
-            setMessage("Location request timed out. Please try again.")
-            break
-          default:
-            setMessage("An unknown location error occurred.")
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      // Fast first attempt: use network/WiFi, short timeout, allow slightly cached position
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     )
   }
 
