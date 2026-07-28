@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  EMPLOYEE
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  employeeId   String     @unique
+  name         String
+  passwordHash String
+  role         Role       @default(EMPLOYEE)
+  status       UserStatus @default(PENDING)
+  
+  department   String?
+  position     String?
+  joiningDate  DateTime?
+  email        String?    @unique
+  phone        String?
+  nic          String?
+  address      String?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  eventsCreated     AttendanceEvent[]  @relation("EventCreator")
+  attendanceRecords AttendanceRecord[]
+  auditLogs         AuditLog[]
+}
+
+enum LocationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Location {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  latitude      Float
+  longitude     Float
+  allowedRadius Int            // in meters
+  department    String?
+  status        LocationStatus @default(ACTIVE)
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  events        AttendanceEvent[]
+  records       AttendanceRecord[]
+}
+
+enum AttendanceType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+model AttendanceEvent {
+  id             String         @id @default(cuid())
+  title          String
+  description    String?
+  locationId     String
+  attendanceType AttendanceType
+  expectedTime   DateTime
+
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  location       Location           @relation(fields: [locationId], references: [id])
+  createdBy      User               @relation("EventCreator", fields: [createdById], references: [id])
+  records        AttendanceRecord[]
+}
+
+enum AttendanceStatus {
+  EARLY
+  ON_TIME
+  LATE
+  OVERTIME
+}
+
+model AttendanceRecord {
+  id                 String           @id @default(cuid())
+  userId             String
+  eventId            String
+  locationId         String
+  
+  expectedTime       DateTime
+  actualTime         DateTime
+  
+  status             AttendanceStatus
+  lateMinutes        Int              @default(0)
+  overtimeMinutes    Int              @default(0)
+  workingHours       Float?
+  
+  latitude           Float
+  longitude          Float
+  distance           Float            // Distance from work location in meters
+  
+  verificationStatus String           @default("VERIFIED") // VERIFIED, REJECTED, PENDING
+  
+  browser            String?
+  device             String?
+  ipAddress          String?
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  // Relations
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event              AttendanceEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  location           Location         @relation(fields: [locationId], references: [id])
+}
+
+model OrganizationSettings {
+  id        String   @id @default(cuid())
+  name      String   @default("Attendix Org")
+  logo      String?
+  timezone  String   @default("UTC")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  userId    String
+  details   String?  // JSON stringified details
+  
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

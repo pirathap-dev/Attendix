@@ -1,0 +1,52 @@
+# Attendix - Docker Compose
+# Starts both the PostgreSQL database and the Next.js application.
+# Run: docker-compose up -d
+
+version: "3.8"
+
+services:
+  # ──────────────────────────────────────────
+  # PostgreSQL Database
+  # ──────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: attendix_db
+    restart: always
+    environment:
+      POSTGRES_USER: attendix_user
+      POSTGRES_PASSWORD: attendix_pass
+      POSTGRES_DB: attendix_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - attendix_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U attendix_user -d attendix_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────────
+  # Attendix Next.js Application
+  # ──────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: attendix_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://attendix_user:attendix_pass@db:5432/attendix_db
+      AUTH_SECRET: CHANGE_THIS_IN_PRODUCTION
+      JWT_SECRET: CHANGE_THIS_IN_PRODUCTION
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      AUTH_TRUST_HOST: "true"
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  attendix_postgres_data:
