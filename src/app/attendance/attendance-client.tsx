@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { recordAttendance } from "@/actions/attendance"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, MapPin, CheckCircle2, XCircle } from "lucide-react"
+import { Loader2, MapPin, CheckCircle2, XCircle, Navigation, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -13,7 +13,7 @@ export default function AttendanceClient() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
 
-  const [status, setStatus] = useState<"IDLE" | "LOCATING" | "SUBMITTING" | "SUCCESS" | "ERROR">("IDLE")
+  const [status, setStatus] = useState<"IDLE" | "REQUESTING_PERM" | "LOCATING" | "SUBMITTING" | "SUCCESS" | "ERROR">("IDLE")
   const [message, setMessage] = useState("")
 
   useEffect(() => {
@@ -48,32 +48,42 @@ export default function AttendanceClient() {
   const handleMarkAttendance = () => {
     if (!token) return
 
-    setStatus("LOCATING")
-
     if (!navigator.geolocation) {
       setStatus("ERROR")
-      setMessage("Geolocation is not supported by your browser. Please use a modern mobile browser.")
+      setMessage("Geolocation is not supported by your browser. Please use a modern mobile browser such as Chrome or Safari.")
       return
     }
 
-    // Stage 1: Fast network/WiFi location (works indoors, no GPS needed)
+    // Show permission request state before the browser prompt fires
+    setStatus("REQUESTING_PERM")
+
+    // Stage 1: Fast network/WiFi location (works indoors)
     navigator.geolocation.getCurrentPosition(
-      submitWithPosition,
-      () => {
-        // Stage 2: Fallback to full GPS with longer timeout
+      (pos) => {
+        setStatus("LOCATING")
+        submitWithPosition(pos)
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setStatus("ERROR")
+          setMessage("PERMISSION_DENIED")
+          return
+        }
+        // Stage 2: GPS fallback with longer timeout
+        setStatus("LOCATING")
         navigator.geolocation.getCurrentPosition(
           submitWithPosition,
           (error) => {
             setStatus("ERROR")
             switch (error.code) {
               case error.PERMISSION_DENIED:
-                setMessage("Location permission denied. Please allow location access in your browser settings and try again.")
+                setMessage("PERMISSION_DENIED")
                 break
               case error.POSITION_UNAVAILABLE:
-                setMessage("Your device location is currently unavailable. Please check that Location Services are enabled and try again.")
+                setMessage("Your device location is currently unavailable. Please ensure Location Services are enabled in your device Settings and try again.")
                 break
               case error.TIMEOUT:
-                setMessage("Could not determine your location in time. Please move to an area with better GPS signal (near a window or outdoors) and try again.")
+                setMessage("Could not determine your location in time. Please move closer to a window or go outdoors for a better GPS signal, then try again.")
                 break
               default:
                 setMessage("An unknown location error occurred. Please try again.")
@@ -82,7 +92,6 @@ export default function AttendanceClient() {
           { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
         )
       },
-      // Fast first attempt: use network/WiFi, short timeout, allow slightly cached position
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     )
   }
@@ -93,36 +102,57 @@ export default function AttendanceClient() {
         <CardHeader className="pb-2">
           <CardTitle className="text-2xl font-bold tracking-tight">Mark Attendance</CardTitle>
           <CardDescription>
-            Verify your location to record today's attendance.
+            Verify your location to record today&apos;s attendance.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-4 pb-8">
 
+          {/* IDLE — show location instructions prominently before clicking */}
           {status === "IDLE" && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center ring-4 ring-primary/5">
                 <MapPin className="w-9 h-9 text-primary" />
               </div>
-              <div className="space-y-2">
-                <p className="text-foreground font-medium">Location Verification Required</p>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Your GPS coordinates will be compared against the designated work location. 
-                  You must be within the allowed radius to successfully clock in/out.
-                </p>
+              
+              {/* ⭐ Clear instruction to enable location */}
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-left space-y-2">
+                <div className="flex items-center gap-2 text-amber-800 font-semibold text-sm">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Before you tap the button below:
+                </div>
+                <ol className="text-sm text-amber-700 space-y-1 pl-5 list-decimal">
+                  <li>Make sure <strong>Location / GPS</strong> is turned ON in your device Settings.</li>
+                  <li>When the browser asks for location permission, tap <strong>&quot;Allow&quot;</strong>.</li>
+                  <li>Stay within the designated work area radius.</li>
+                </ol>
+              </div>
+
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>Your GPS coordinates will be compared against the designated work location.</p>
               </div>
               <Button size="lg" className="w-full text-base h-12 shadow-lg shadow-primary/20" onClick={handleMarkAttendance}>
-                <MapPin className="mr-2 h-5 w-5" />
-                Verify Location & Mark Attendance
+                <Navigation className="mr-2 h-5 w-5" />
+                Enable Location &amp; Mark Attendance
               </Button>
-              <p className="text-xs text-muted-foreground">
-                Not logged in?{" "}
-                <Link href="/login" className="text-primary hover:underline">
-                  Log in first
-                </Link>
-              </p>
             </div>
           )}
 
+          {/* REQUESTING_PERM — waiting for browser dialog */}
+          {status === "REQUESTING_PERM" && (
+            <div className="flex flex-col items-center gap-5 py-8">
+              <div className="mx-auto w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center ring-4 ring-amber-100 animate-pulse">
+                <MapPin className="w-9 h-9 text-amber-500" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-foreground">Waiting for location permission…</p>
+                <p className="text-sm text-muted-foreground">
+                  A permission dialog should have appeared. Please tap <strong>Allow</strong> to continue.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* LOCATING / SUBMITTING */}
           {(status === "LOCATING" || status === "SUBMITTING") && (
             <div className="flex flex-col items-center gap-5 py-8">
               <Loader2 className="w-14 h-14 text-primary animate-spin" />
@@ -139,40 +169,74 @@ export default function AttendanceClient() {
             </div>
           )}
 
+          {/* SUCCESS */}
           {status === "SUCCESS" && (
             <div className="flex flex-col items-center gap-5 py-6">
-              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center ring-4 ring-green-100">
-                <CheckCircle2 className="w-10 h-10 text-green-500" />
+              <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center ring-4 ring-green-100">
+                <CheckCircle2 className="w-12 h-12 text-green-500" />
               </div>
-              <div className="space-y-1">
-                <h3 className="text-xl font-bold text-green-700">Attendance Recorded!</h3>
-                <p className="text-muted-foreground text-sm">{message}</p>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-green-700">You&apos;re clocked in!</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">{message}</p>
               </div>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center w-full h-9 px-4 border border-border bg-background hover:bg-muted rounded-lg text-sm font-medium transition-colors mt-2"
-              >
-                Return to Dashboard
-              </Link>
+              <div className="w-full space-y-2 pt-2">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center justify-center w-full h-11 px-4 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Go to Dashboard
+                </Link>
+                <Link
+                  href="/dashboard/attendance"
+                  className="flex items-center justify-center w-full h-11 px-4 border border-border bg-background hover:bg-muted rounded-lg text-sm font-medium transition-colors"
+                >
+                  View My Attendance
+                </Link>
+              </div>
             </div>
           )}
 
+          {/* ERROR */}
           {status === "ERROR" && (
             <div className="flex flex-col items-center gap-5 py-6">
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center ring-4 ring-red-100">
                 <XCircle className="w-10 h-10 text-red-500" />
               </div>
-              <div className="space-y-1">
-                <h3 className="text-xl font-bold text-red-700">Verification Failed</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{message}</p>
-              </div>
-              <Button
-                className="w-full mt-2"
-                onClick={() => setStatus("IDLE")}
-                disabled={!token}
-              >
-                Try Again
-              </Button>
+              
+              {/* Special UI for permission denied */}
+              {message === "PERMISSION_DENIED" ? (
+                <div className="w-full space-y-3 text-left">
+                  <h3 className="text-lg font-bold text-red-700 text-center">Location Access Denied</h3>
+                  <p className="text-sm text-muted-foreground text-center">
+                    The browser was denied access to your location. Follow these steps to fix it:
+                  </p>
+                  <div className="rounded-lg bg-slate-50 border border-border p-4 text-sm space-y-2 text-foreground">
+                    <p className="font-semibold">📱 On Android (Chrome):</p>
+                    <p className="text-muted-foreground pl-2">Settings → Site Settings → Location → find this site → Allow</p>
+                    <p className="font-semibold mt-2">🍎 On iPhone (Safari):</p>
+                    <p className="text-muted-foreground pl-2">Settings → Safari → Location → Allow</p>
+                    <p className="font-semibold mt-2">💻 On Desktop Chrome:</p>
+                    <p className="text-muted-foreground pl-2">Click the 🔒 lock icon in the address bar → Location → Allow</p>
+                  </div>
+                  <Button className="w-full mt-2" onClick={() => { setStatus("IDLE"); setMessage("") }}>
+                    I&apos;ve enabled location — Try Again
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-bold text-red-700">Verification Failed</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">{message}</p>
+                  </div>
+                  <Button
+                    className="w-full mt-2"
+                    onClick={() => { setStatus("IDLE"); setMessage("") }}
+                    disabled={!token}
+                  >
+                    Try Again
+                  </Button>
+                </>
+              )}
             </div>
           )}
 

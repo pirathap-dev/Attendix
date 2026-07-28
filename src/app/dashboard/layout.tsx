@@ -13,7 +13,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen bg-muted/20">
       <Sidebar role={user?.role as string} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Header user={{ name: user?.name, role: user?.role as string, employeeId: user?.employeeId as string }} />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}

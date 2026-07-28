@@ -133,3 +133,21 @@ export async function recordAttendance(token: string, userLat: number, userLon: 
     return { error: "An unexpected error occurred." }
   }
 }
+
+export async function getEventAttendance(eventId: string) {
+  const session = await auth()
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "SUPERVISOR")) {
+    throw new Error("Unauthorized")
+  }
+
+  const records = await prisma.attendanceRecord.findMany({
+    where: { eventId },
+    include: {
+      user: { select: { name: true, employeeId: true, department: true } },
+    },
+    orderBy: { actualTime: "asc" },
+  })
+
+  return records
+}
+

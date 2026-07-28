@@ -44,7 +44,7 @@ export default function Header({ user }: HeaderProps) {
   }, [])
 
   return (
-    <header className="h-16 border-b border-border bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-between px-6 shrink-0 z-10">
+    <header className="h-16 border-b border-border bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-between px-6 pl-16 md:pl-6 shrink-0 z-10">
       <div />
 
       {/* Profile dropdown */}
