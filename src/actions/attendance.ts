@@ -72,26 +72,33 @@ export async function recordAttendance(token: string, userLat: number, userLon: 
     }
 
     // 5. Calculate Status, Late, Overtime
+    // IMPORTANT: event.expectedTime has the date from when the event was created.
+    // We only care about the TIME portion (HH:MM). Rebuild it using today's date.
     const now = new Date()
+    const expected = new Date(event.expectedTime)
+    const todayExpected = new Date(now)
+    todayExpected.setHours(expected.getUTCHours(), expected.getUTCMinutes(), 0, 0)
+
     let status: AttendanceStatus = "ON_TIME"
     let lateMinutes = 0
     let overtimeMinutes = 0
 
-    const expectedTime = event.expectedTime
-    const diffMinutes = Math.round((now.getTime() - expectedTime.getTime()) / 60000)
+    // diffMinutes > 0 means employee arrived AFTER expected time (late for check-in)
+    // diffMinutes < 0 means employee arrived BEFORE expected time (early)
+    const diffMinutes = Math.round((now.getTime() - todayExpected.getTime()) / 60000)
 
     if (event.attendanceType === "CHECK_IN") {
-      if (diffMinutes > 15) { // 15 mins grace period
+      if (diffMinutes > 5) {       // more than 5 min after expected → LATE
         status = "LATE"
         lateMinutes = diffMinutes
-      } else if (diffMinutes < -15) {
+      } else if (diffMinutes < -5) { // more than 5 min before expected → EARLY
         status = "EARLY"
       }
     } else { // CHECK_OUT
-      if (diffMinutes > 15) {
+      if (diffMinutes > 5) {       // stayed more than 5 min past expected → OVERTIME
         status = "OVERTIME"
         overtimeMinutes = diffMinutes
-      } else if (diffMinutes < -15) {
+      } else if (diffMinutes < -5) { // left more than 5 min before expected → EARLY departure
         status = "EARLY"
       }
     }

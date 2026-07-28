@@ -1,8 +1,10 @@
 import { auth } from "@/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Clock, MapPin, Building } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Users, Clock, MapPin, Building, CheckCircle2, AlertCircle, Timer } from "lucide-react"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
+import { LocalTime } from "@/components/local-time"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -10,12 +12,12 @@ export default async function DashboardPage() {
 
   const user = session.user
 
-  let totalEmployees = 0;
-  let presentToday = 0;
-  let activeLocations = 0;
-  let totalDepartments = 0;
-  let daysPresentThisMonth = 0;
-  let lateArrivals = 0;
+  let totalEmployees = 0
+  let presentToday = 0
+  let activeLocations = 0
+  let totalDepartments = 0
+  let daysPresentThisMonth = 0
+  let lateArrivals = 0
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -24,17 +26,13 @@ export default async function DashboardPage() {
   if (user.role === 'ADMIN') {
     totalEmployees = await prisma.user.count()
     activeLocations = await prisma.location.count({ where: { status: 'ACTIVE' } })
-    
     const departments = await prisma.user.findMany({
       select: { department: true },
       distinct: ['department']
     })
     totalDepartments = departments.filter(d => d.department).length
-
     presentToday = await prisma.attendanceRecord.count({
-      where: {
-        createdAt: { gte: today }
-      }
+      where: { createdAt: { gte: today } }
     })
   } else {
     daysPresentThisMonth = await prisma.attendanceRecord.count({
@@ -43,7 +41,6 @@ export default async function DashboardPage() {
         createdAt: { gte: firstDayOfMonth }
       }
     })
-    
     lateArrivals = await prisma.attendanceRecord.count({
       where: {
         userId: String(user.id),
@@ -53,16 +50,34 @@ export default async function DashboardPage() {
     })
   }
 
+  // Fetch recent records for the current user (or all records for admin)
+  const recentRecords = await prisma.attendanceRecord.findMany({
+    where: user.role === 'ADMIN' ? {} : { userId: String(user.id) },
+    orderBy: { actualTime: "desc" },
+    take: 6,
+    include: {
+      event: { select: { title: true, attendanceType: true } },
+      user: { select: { name: true } },
+    }
+  })
+
+  const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+    ON_TIME: { label: "On Time", color: "text-green-600", icon: <CheckCircle2 className="h-4 w-4 text-green-500" /> },
+    LATE: { label: "Late", color: "text-red-600", icon: <AlertCircle className="h-4 w-4 text-red-500" /> },
+    EARLY: { label: "Early", color: "text-blue-600", icon: <Timer className="h-4 w-4 text-blue-500" /> },
+    OVERTIME: { label: "Overtime", color: "text-purple-600", icon: <Timer className="h-4 w-4 text-purple-500" /> },
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Welcome back, {user.name}</h2>
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Welcome back, {user.name}</h2>
         <p className="text-muted-foreground">
-          Here is what's happening with your attendance today.
+          Here is what&apos;s happening with your attendance today.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {user.role === 'ADMIN' ? (
           <>
             <Card>
@@ -107,11 +122,12 @@ export default async function DashboardPage() {
           <>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Days Present (This Month)</CardTitle>
+                <CardTitle className="text-sm font-medium">Days Present</CardTitle>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{daysPresentThisMonth}</div>
+                <p className="text-xs text-muted-foreground">This month</p>
               </CardContent>
             </Card>
             <Card>
@@ -121,41 +137,64 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">{lateArrivals}</div>
+                <p className="text-xs text-muted-foreground">This month</p>
               </CardContent>
             </Card>
           </>
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-              [Chart Component Placeholder]
+      {/* Recent Activity — real data */}
+      <Card className="col-span-full">
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+          <CardDescription>
+            {user.role === 'ADMIN' ? "Latest attendance records across all employees" : "Your latest attendance records"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentRecords.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center gap-2 text-muted-foreground">
+              <CheckCircle2 className="h-10 w-10 opacity-30" />
+              <p>No attendance records yet.</p>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Your latest attendance records</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-8">
-              <div className="flex items-center">
-                <div className="ml-4 space-y-1">
-                  <p className="text-sm font-medium leading-none">Checked In</p>
-                  <p className="text-sm text-muted-foreground">Today at 08:55 AM</p>
-                </div>
-                <div className="ml-auto font-medium text-green-600">ON TIME</div>
-              </div>
+          ) : (
+            <div className="space-y-3">
+              {recentRecords.map((record) => {
+                const cfg = statusConfig[record.status] ?? { label: record.status, color: "text-foreground", icon: null }
+                return (
+                  <div key={record.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-border/50">
+                    <div className="shrink-0">{cfg.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {user.role === 'ADMIN' && <span className="text-muted-foreground">{record.user.name} · </span>}
+                        {record.event.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {record.event.attendanceType === "CHECK_IN" ? "Check-In" : "Check-Out"} at{" "}
+                        <LocalTime date={record.actualTime} />
+                        {" · "}
+                        {new Date(record.actualTime).toLocaleDateString([], { month: "short", day: "numeric" })}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <Badge
+                        variant="outline"
+                        className={cfg.color + " text-xs font-semibold"}
+                      >
+                        {cfg.label}
+                      </Badge>
+                      {record.lateMinutes > 0 && (
+                        <p className="text-xs text-red-500 mt-0.5">+{record.lateMinutes}m</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
