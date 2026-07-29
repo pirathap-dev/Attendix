@@ -82,9 +82,11 @@ export default function ReportsClient({ employees }: ReportsClientProps) {
 
   const downloadFile = async (type: "excel" | "pdf", employeeId?: string) => {
     const { from, to } = buildDateRange()
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
     const params = new URLSearchParams({
       from: from.toISOString(),
       to: to.toISOString(),
+      tz: tz
     })
     if (employeeId && employeeId !== "all") params.set("userId", employeeId)
 

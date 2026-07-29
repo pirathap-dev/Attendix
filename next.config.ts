@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Enable standalone output for Docker deployment, but disable it on Vercel
   output: process.env.VERCEL ? undefined : "standalone",
 
+  // Prevent webpack from bundling pdfkit and failing on its native dependencies
+  serverExternalPackages: ["pdfkit"],
+
   // Security headers
   async headers() {
     return [

@@ -147,11 +147,13 @@ export async function GET(req: NextRequest) {
     workbook.creator = "Attendix"
     workbook.created = new Date()
 
+    const tz = searchParams.get("tz") || "UTC"
+
     const formatTime = (d: Date | null) =>
-      d ? new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"
+      d ? new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }) : "—"
 
     const formatDate = (d: Date) =>
-      new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+      new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: tz })
 
     // ── Sheet 1: Report Header ────────────────────────────────────────────
     const coverSheet = workbook.addWorksheet("Report Info")

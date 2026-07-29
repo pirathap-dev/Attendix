@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Clock, Timer, AlertCircle, CalendarCheck, CheckCircle2, XCircle } from "lucide-react"
 import { formatMinutes, formatWorkingHours } from "@/lib/attendance-calculations"
 import AttendanceFilterClient from "./attendance-filter-client"
+import { LocalTime } from "@/components/local-time"
 
 export default async function MyAttendancePage({
   searchParams,
@@ -145,7 +146,7 @@ export default async function MyAttendancePage({
   }
 
   const formatTime = (d: Date | null) =>
-    d ? new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"
+    d ? <LocalTime date={d} type="time" /> : "—"
 
   const statusBadge = (status: string | null) => {
     if (!status) return <span className="text-muted-foreground text-xs">—</span>
@@ -260,7 +261,7 @@ export default async function MyAttendancePage({
                 {allRows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium whitespace-nowrap text-sm">
-                      {new Date(row.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                      <LocalTime date={row.date} type="date" />
                     </TableCell>
                     <TableCell className="text-sm">
                       <div className="font-medium">{row.sessionTitle}</div>
