@@ -1,6 +1,5 @@
 <div align="center">
   <img src="public/logo.png" alt="Attendix Logo" width="120" />
-  <h1>Attendix</h1>
   <p><strong>A Modern, Geo-Fenced QR Attendance System Built for Enterprise</strong></p>
   
   <p>
