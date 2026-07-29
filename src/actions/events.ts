@@ -10,7 +10,7 @@ export async function getEvents() {
   if (!session?.user) throw new Error("Unauthorized")
 
   return await prisma.attendanceEvent.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { sessionDate: "desc" },
     include: {
       location: true,
       createdBy: { select: { name: true } }
@@ -23,7 +23,9 @@ export async function createEvent(data: {
   description?: string
   locationId: string
   attendanceType: AttendanceType
-  expectedTime: Date
+  expectedTime: Date         // Full DateTime with the correct session date + time
+  sessionDate?: Date         // The intended date of the session
+  sessionGroupId?: string    // Shared UUID for paired CHECK_IN / CHECK_OUT events
 }) {
   const session = await auth()
   if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "SUPERVISOR")) {
@@ -37,6 +39,8 @@ export async function createEvent(data: {
       locationId: data.locationId,
       attendanceType: data.attendanceType,
       expectedTime: data.expectedTime,
+      sessionDate: data.sessionDate ?? data.expectedTime,
+      sessionGroupId: data.sessionGroupId ?? null,
       createdById: String(session.user.id)
     }
   })

@@ -81,6 +81,10 @@ model AttendanceEvent {
   attendanceType AttendanceType
   expectedTime   DateTime
 
+  // Session pairing: links a CHECK_IN event to its CHECK_OUT counterpart
+  sessionGroupId String?        // UUID shared by the paired CHECK_IN and CHECK_OUT events
+  sessionDate    DateTime?      // The intended date of the session (for future-dated sessions)
+
   createdById    String
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -110,7 +114,10 @@ model AttendanceRecord {
   status             AttendanceStatus
   lateMinutes        Int              @default(0)
   overtimeMinutes    Int              @default(0)
-  workingHours       Float?
+  workingHours       Float?           // Populated on CHECK_OUT: hours between check-in and check-out
+
+  // Session pairing: CHECK_OUT record stores reference to the CHECK_IN record
+  checkInRecordId    String?          // ID of the corresponding CHECK_IN AttendanceRecord
   
   latitude           Float
   longitude          Float
